@@ -1,0 +1,1 @@
+Error occurred during prediction. Error: Error saving CSV file: [Errno 13] Permission denied: 'C:\\Users\\abbus\\Documents\\GitRepos\\rt_repos\\rt-models\\forecasting\\rt_forecasting_prophet\\model_inputs_outputs/outputs\\predictions\\predictions.csv'

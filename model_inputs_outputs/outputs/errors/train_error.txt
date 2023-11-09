@@ -1,0 +1,1 @@
+Error occurred during training. Error: Prophet.__init__() got an unexpected keyword argument 'annual_seasonality'

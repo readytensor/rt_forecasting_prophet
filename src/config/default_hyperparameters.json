@@ -1,0 +1,4 @@
+{
+  "seasonality_mode": "multiplicative",
+  "growth": "linear"
+}
