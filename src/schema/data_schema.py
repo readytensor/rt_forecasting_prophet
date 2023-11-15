@@ -302,8 +302,8 @@ def load_json_data_schema(schema_dir_path: str) -> ForecastingSchema:
         ForecastingSchema: An instance of the ForecastingSchema.
     """
     schema_dict = read_json_as_dict(input_path=schema_dir_path)
-    #validated_schema_dict = validate_schema_dict(schema_dict=schema_dict)
-    data_schema = ForecastingSchema(schema_dict)
+    validated_schema_dict = validate_schema_dict(schema_dict=schema_dict)
+    data_schema = ForecastingSchema(validated_schema_dict)
     return data_schema
 
 
