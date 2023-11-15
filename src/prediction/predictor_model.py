@@ -1,8 +1,8 @@
 import os
-import warnings
-from typing import Optional, List
-from tqdm import tqdm
 import sys
+import warnings
+from typing import List
+from tqdm import tqdm
 
 import joblib
 import numpy as np
@@ -25,15 +25,18 @@ class Forecaster:
     """
 
     model_name = "Prophet Forecaster"
+    made_up_frequency = 'S'  # yearly
+    made_up_start_dt = '2000-01-01 00:00:00'
 
     def __init__(
         self,
         id_col,
         target_col,
         time_col,
+        time_col_dtype,
         additional_regressors,
         growth="linear",
-        seasonality_mode="additive",
+        seasonality_mode="multiplicative",
         uncertainty_samples=None,
         interval_width=95,
         run_type="multi"
@@ -52,6 +55,7 @@ class Forecaster:
         self.id_col = id_col
         self.target_col = target_col
         self.time_col = time_col
+        self.time_col_dtype = time_col_dtype
         self.additional_regressors = additional_regressors
         self.growth = growth
         self.seasonality_mode = seasonality_mode
@@ -62,18 +66,29 @@ class Forecaster:
         self._is_trained = False
         self.last_timestamp = None
         self.timedelta = None
+        self.time_to_int_map = {}
 
         self.multi_min_count = 5
         self.print_period = 5
         self.max_cpus_to_use = 6
 
     
-    def process_datetime_column(self, data: pd.DataFrame):
+    def prepare_data(self, data: pd.DataFrame, is_train=True) -> pd.DataFrame:
         """
-        Function to add a datetime column that increments by 1 minute for each row, 
-        starting at '1/1/2023 00:00:00'
+        Function to prepare the dataframe to use with Prophet. 
+
+        Prophet expects the following columns:
+        - ds: datetime column
+        - y: target column of numeric type (float or int)
+        
+        If the time column is of type int, we will update it to be datetime
+        by creating artificial dates starting at '1/1/2023 00:00:00'
+        that increment by 1 minute for each row,         
         """
-        if 'ds' not in data.columns:
+        # sort data
+        data = data.sort_values(by=[self.id_col, self.time_col])
+
+        if self.time_col_dtype == 'INT':
 
             # Find the number of rows for each location (assuming all locations have
             # the same number of rows)
@@ -81,41 +96,54 @@ class Forecaster:
             series_len = series_val_counts.iloc[0]
             num_series = series_val_counts.shape[0]
 
-            # Generate the datetime range starting from '1/1/2023 00:00:00', with the
-            # total count being n times the unique locations
-            start_date = pd.Timestamp('2023-01-01 00:00:00')
-            datetimes = pd.date_range(
-                start=start_date,
-                periods=series_len * num_series,
-                freq='T'
-            )        
+            if is_train:
+                # Generate the datetime range starting from '1/1/2023 00:00:00', with the
+                # total count being n times the unique locations
+                start_date = pd.Timestamp(self.made_up_start_dt)
+                datetimes = pd.date_range(
+                    start=start_date,
+                    periods=series_len,
+                    freq=self.made_up_frequency
+                )
+                self.last_timestamp = datetimes[-1]
+                self.timedelta = datetimes[-1] - datetimes[-2]
+            else:
+                start_date = self.last_timestamp + self.timedelta
+                datetimes = pd.date_range(
+                    start=start_date,
+                    periods=series_len,
+                    freq=self.made_up_frequency
+                )
+            int_vals = sorted(data[self.time_col].unique().tolist())
+            self.time_to_int_map = dict(zip(datetimes, int_vals))
             # Repeat the datetime range for each location
-            data['ds'] = pd.Series(datetimes).\
-                repeat(data[self.id_col].nunique()/num_series).reset_index(drop=True)
+            data[self.time_col] = list(datetimes) * num_series
         else:
-            data['ds'] = pd.to_datetime(data['ds'])
-            datetimes = sorted(data['ds'].unique().tolist())
-        self.last_timestamp = datetimes[-1]
-        self.timedelta = datetimes[-1] - datetimes[-2]
-        return data
+            data[self.time_col] = pd.to_datetime(data[self.time_col])
+            data[self.time_col] = data[self.time_col].dt.tz_localize(None)
 
-
-    def fit(self, data: pd.DataFrame) -> None:
-        """Fit the Forecaster to the training data.
-
-        Args:
-            data (pandas.DataFrame): The features of the training data.
-        """
-        history = data.rename(
+        # rename columns as expected by Prophet
+        data = data.rename(
             columns={
                 self.target_col: 'y',
                 self.time_col: 'ds'
             }
         )
-        history = self.process_datetime_column(history)
-        reordered_cols = [self.id_col, 'ds', 'y']
-        history = history[reordered_cols]
-        
+        reordered_cols = [self.id_col, 'ds']
+        other_cols = [c for c in data.columns if c not in reordered_cols]
+        reordered_cols.extend(other_cols)
+        data = data[reordered_cols]
+        return data
+
+
+    def fit(self, history: pd.DataFrame) -> None:
+        """Fit the Forecaster to the training data.
+
+        Args:
+            data (pandas.DataFrame): The features of the training data.
+        """
+        history = self.prepare_data(history.copy())
+
         groups_by_ids = history.groupby(self.id_col)
         all_ids = list(groups_by_ids.groups.keys())
         all_series = [groups_by_ids.get_group(id_).drop(columns=self.id_col)
@@ -123,7 +151,7 @@ class Forecaster:
 
         self.models = {}
         if (self.run_type == "sequential" or len(all_ids) <= self.multi_min_count):
-            for id_, series in tqdm(zip(all_ids, all_series)):        
+            for id_, series in tqdm(zip(all_ids, all_series)):
                 model = self._fit_on_series( history=series )
                 self.models[id_] = model
         elif self.run_type == "multi":
@@ -134,7 +162,7 @@ class Forecaster:
             models = list(tqdm(p.imap(self._fit_on_series, all_series)))            
 
             for i, id_ in enumerate(all_ids):
-                self.models[id_] = models[i] 
+                self.models[id_] = models[i]
         else:
             raise ValueError(
                 f"Unrecognized run_type {self.run_type}. "
@@ -150,27 +178,12 @@ class Forecaster:
             interval_width=self.interval_width,
             seasonality_mode=self.seasonality_mode,
         )
+        for regressor in self.additional_regressors:
+            model.add_regressor(regressor)
         model.fit(history)
         return model
 
-    def create_future_dataframe(self, forecast_length):
-        """Create a future dataframe for the forecast.
-
-        Args:
-            forecast_length (int): The length of forecast.
-        Returns:
-            pandas.DataFrame: The future dataframe.
-        """
-        future = pd.DataFrame()
-        datetimes = pd.date_range(
-                start=self.last_timestamp,
-                periods=forecast_length,
-                freq=self.timedelta
-            )
-        future['ds'] = datetimes
-        return future
-
-    def predict(self, forecast_length, prediction_col_name) -> np.ndarray:
+    def predict(self, test_data, prediction_col_name) -> np.ndarray:
         """Make the forecast of given length.
 
         Args:
@@ -179,19 +192,27 @@ class Forecaster:
         Returns:
             numpy.ndarray: The predicted class labels.
         """
-        future = self.create_future_dataframe(forecast_length)
-
+        future_df = self.prepare_data(test_data.copy(), is_train=False)
+        groups_by_ids = future_df.groupby(self.id_col)
+        all_series = [groups_by_ids.get_group(id_).drop(columns=self.id_col)
+                      for id_ in self.all_ids]
         # for some reason, multi-processing takes longer! So use single-threaded.
         all_forecasts = []
-        for id_ in tqdm(self.all_ids):
-            forecast = self._predict_on_series(key_and_future_df = (id_, future))
+        for id_, series_df in tqdm(zip(self.all_ids, all_series)):
+            forecast = self._predict_on_series(key_and_future_df = (id_, series_df))
             forecast.insert(0, self.id_col, id_)
             all_forecasts.append(forecast)
 
         all_forecasts = pd.concat(all_forecasts, axis=0, ignore_index=True)
         all_forecasts['yhat'] = all_forecasts['yhat'].round(4)
-        all_forecasts.rename(columns={"yhat": prediction_col_name}, inplace=True)
-        del all_forecasts['ds']
+        all_forecasts.rename(columns={
+            "yhat": prediction_col_name,
+            "ds": self.time_col,
+            }, inplace=True)
+        # del all_forecasts['ds']
+        if self.time_col_dtype == 'INT':
+            all_forecasts[self.time_col]  = all_forecasts[self.time_col].map(self.time_to_int_map)
+        print(all_forecasts.head())
         return all_forecasts
 
 
@@ -235,11 +256,13 @@ class Forecaster:
 
 
 def train_predictor_model(
-        data: pd.DataFrame,
+        history: pd.DataFrame,
         id_col: str,
         target_col: str,
         time_col: str,
-        exog_cols: List[str],
+        time_col_dtype: str,
+        past_covariates: List[str],
+        future_covariates: List[str],
         hyperparameters: dict
     ) -> Forecaster:
     """
@@ -257,28 +280,31 @@ def train_predictor_model(
         id_col=id_col,
         target_col=target_col,
         time_col=time_col,
-        additional_regressors=exog_cols,
+        time_col_dtype=time_col_dtype,
+        additional_regressors=future_covariates,
         **hyperparameters
     )
-    model.fit(data=data)
+    model.fit(history=history)
     return model
 
 
 def predict_with_model(
-    model: Forecaster, forecast_length: int, prediction_col_name: str
-) -> np.ndarray:
+        model: Forecaster,
+        test_data: pd.DataFrame,
+        prediction_col_name: str
+    ) -> np.ndarray:
     """
     Make forecast.
 
     Args:
         model (Forecaster): The Forecaster model.
-        forecast_length (int): The forecast length.
+        test_data (pd.DataFrame): The test input data for forecasting.
         prediction_col_name (int): Name to give to prediction column.
 
     Returns:
         np.ndarray: The forecast.
     """
-    return model.predict(forecast_length, prediction_col_name)
+    return model.predict(test_data, prediction_col_name)
 
 
 def save_predictor_model(model: Forecaster, predictor_dir_path: str) -> None:

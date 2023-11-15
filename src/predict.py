@@ -2,14 +2,12 @@ from typing import List
 
 import numpy as np
 import pandas as pd
-import sys
 
 from config import paths
 from data_models.data_validator import validate_data
 from data_models.prediction_data_model import validate_predictions
 from logger import get_logger, log_error
 from prediction.predictor_model import load_predictor_model, predict_with_model
-from preprocessing.preprocess import load_pipeline_and_target_encoder, transform_data
 from schema.data_schema import load_saved_schema
 from utils import read_csv_in_directory, read_json_as_dict, save_dataframe_as_csv
 
@@ -63,7 +61,7 @@ def create_predictions_dataframe(
 def run_batch_predictions(
     saved_schema_dir_path: str = paths.SAVED_SCHEMA_DIR_PATH,
     model_config_file_path: str = paths.MODEL_CONFIG_FILE_PATH,
-    preprocessing_dir_path: str = paths.PREPROCESSING_DIR_PATH,
+    test_dir: str = paths.TEST_DIR,
     predictor_dir_path: str = paths.PREDICTOR_DIR_PATH,
     predictions_file_path: str = paths.PREDICTIONS_FILE_PATH,
 ) -> None:
@@ -80,6 +78,7 @@ def run_batch_predictions(
     Args:
         saved_schema_dir_path (str): Dir path to the saved data schema.
         model_config_file_path (str): Path to the model configuration file.
+        test_dir (str): Directory path for the test data.
         pipeline_file_path (str): Path to the saved pipeline file.
         target_encoder_file_path (str): Path to the saved target encoder file.
         predictor_file_path (str): Path to the saved predictor model file.
@@ -95,13 +94,22 @@ def run_batch_predictions(
         logger.info("Loading model config...")
         model_config = read_json_as_dict(model_config_file_path)
 
+        logger.info("Loading prediction input data...")
+        test_data = read_csv_in_directory(file_dir_path=test_dir)
+
+        # # validate the data
+        # logger.info("Validating prediction data...")
+        # validated_test_data = validate_data(
+        #     data=test_data, data_schema=data_schema, is_train=False
+        # )
+
         logger.info("Loading predictor model...")
         predictor_model = load_predictor_model(predictor_dir_path)
 
         logger.info("Making predictions...")
         predictions = predict_with_model(
             predictor_model,
-            data_schema.forecast_length,
+            test_data,
             model_config["prediction_field_name"]
         )
 

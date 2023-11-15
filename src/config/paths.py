@@ -16,6 +16,11 @@ INPUT_DIR = os.path.join(MODEL_INPUTS_OUTPUTS, "inputs")
 INPUT_SCHEMA_DIR = os.path.join(INPUT_DIR, "schema")
 # Path to data directory inside inputs directory
 DATA_DIR = os.path.join(INPUT_DIR, "data")
+# Path to training directory inside data directory
+TRAIN_DIR = os.path.join(DATA_DIR, "training")
+# Path to test directory inside data directory
+TEST_DIR = os.path.join(DATA_DIR, "testing")
+
 # Path to model directory
 MODEL_PATH = os.path.join(MODEL_INPUTS_OUTPUTS, "model")
 # Path to artifacts directory inside model directory

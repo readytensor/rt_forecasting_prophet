@@ -30,7 +30,8 @@ class ForecastingSchema:
             schema_dict (dict): The python dictionary of schema.
         """
         self.schema = schema_dict
-        self._exogenous_features = self._get_exogenous_features()
+        self._past_covariates = self._get_past_covariates()
+        self._future_covariates = self._get_future_covariates()
 
     @property
     def model_category(self) -> str:
@@ -113,29 +114,54 @@ class ForecastingSchema:
         return int(self.schema["forecastLength"])
 
     @property
-    def exogenous_features(self) -> List[str]:
+    def past_covariates(self) -> List[str]:
         """
-        Gets the exogenous features of the data.
+        Gets the past_covariates of the data.
 
         Returns:
-            List[str]: The exogenous features list.
+            List[str]: The past covariates list.
         """
-        return self._exogenous_features
+        return self._past_covariates
 
-    def _get_exogenous_features(self) -> List[str]:
+    def _get_past_covariates(self) -> List[str]:
         """
-        Returns the feature names of numeric and categorical data types.
+        Returns the names of past covariates.
 
         Returns:
-            List[str]: The list of exogenous feature names.
+            List[str]: The list of past_covariates.
         """
-        if "additionalFeatures" not in self.schema:
+        if "past_covariates" not in self.schema:
             return []
-        if len(self.schema["additionalFeatures"]) == 0:
+        if len(self.schema["pastCovariates"]) == 0:
             return []
-        fields = self.schema["additionalFeatures"]
-        exogenous_features = [f["name"] for f in fields if f["dataType"] == "NUMERIC"]
-        return exogenous_features
+        fields = self.schema["pastCovariates"]
+        past_covariates = [f["name"] for f in fields if f["dataType"] == "NUMERIC"]
+        return past_covariates
+
+    @property
+    def future_covariates(self) -> List[str]:
+        """
+        Gets the future_covariates of the data.
+
+        Returns:
+            List[str]: The future covariates list.
+        """
+        return self._future_covariates
+
+    def _get_future_covariates(self) -> List[str]:
+        """
+        Returns the names of future covariates.
+
+        Returns:
+            List[str]: The list of future_covariates.
+        """
+        if "future_covariates" not in self.schema:
+            return []
+        if len(self.schema["futureCovariates"]) == 0:
+            return []
+        fields = self.schema["futureCovariates"]
+        future_covariates = [f["name"] for f in fields if f["dataType"] == "NUMERIC"]
+        return future_covariates
 
     @property
     def id_col(self) -> str:
@@ -145,7 +171,7 @@ class ForecastingSchema:
         Returns:
             str: The name of the ID field.
         """
-        return self.schema["id"]["name"]
+        return self.schema["idField"]["name"]
 
     @property
     def id_description(self) -> str:
@@ -170,6 +196,18 @@ class ForecastingSchema:
         if "timeField" not in self.schema:
             return None
         return self.schema["timeField"]["name"]
+
+    @property
+    def time_col_dtype(self) -> str:
+        """
+        Gets the data type of the time field.
+
+        Returns:
+            str: The data type of the ID field.
+        """
+        if "timeField" not in self.schema:
+            return None
+        return self.schema["timeField"]["dataType"]
 
     @property
     def time_description(self) -> str:

@@ -20,9 +20,7 @@ def run_training(
     input_schema_dir: str = paths.INPUT_SCHEMA_DIR,
     saved_schema_dir_path: str = paths.SAVED_SCHEMA_DIR_PATH,
     model_config_file_path: str = paths.MODEL_CONFIG_FILE_PATH,
-    data_dir: str = paths.DATA_DIR,
-    preprocessing_config_file_path: str = paths.PREPROCESSING_CONFIG_FILE_PATH,
-    preprocessing_dir_path: str = paths.PREPROCESSING_DIR_PATH,
+    train_dir: str = paths.TRAIN_DIR,
     predictor_dir_path: str = paths.PREDICTOR_DIR_PATH,
     default_hyperparameters_file_path: str = paths.DEFAULT_HYPERPARAMETERS_FILE_PATH,
     run_tuning: bool = False,
@@ -37,7 +35,7 @@ def run_training(
         saved_schema_dir_path (str, optional): The path where to save the schema.
         model_config_file_path (str, optional): The path of the model
             configuration file.
-        data_dir (str, optional): The directory path of the data.
+        train_dir (str, optional): The directory path of the train data.
         preprocessing_config_file_path (str, optional): The path of the preprocessing
             configuration file.
         preprocessing_dir_path (str, optional): The dir path where to save the pipeline
@@ -73,7 +71,7 @@ def run_training(
 
         # load train data
         logger.info("Loading train data...")
-        train_data = read_csv_in_directory(data_dir)
+        train_data = read_csv_in_directory(train_dir)
 
         # validate the data
         # logger.info("Validating train data...")
@@ -87,11 +85,13 @@ def run_training(
             default_hyperparameters_file_path
         )
         forecaster = train_predictor_model(
-            data=train_data,
+            history=train_data,
             id_col=data_schema.id_col,
             target_col=data_schema.target,
             time_col=data_schema.time_col,
-            exog_cols=data_schema.exogenous_features,
+            time_col_dtype=data_schema.time_col_dtype,
+            past_covariates=data_schema.past_covariates,
+            future_covariates=data_schema.future_covariates,
             hyperparameters=default_hyperparameters
         )
 
