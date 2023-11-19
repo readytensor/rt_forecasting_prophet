@@ -25,7 +25,7 @@ class Forecaster:
     """
 
     model_name = "Prophet Forecaster"
-    made_up_frequency = 'S'  # yearly
+    made_up_frequency = 'S'  # by seconds
     made_up_start_dt = '2000-01-01 00:00:00'
 
     def __init__(
@@ -69,7 +69,6 @@ class Forecaster:
         self.time_to_int_map = {}
 
         self.multi_min_count = 5
-        self.print_period = 5
         self.max_cpus_to_use = 6
 
     
@@ -97,8 +96,7 @@ class Forecaster:
             num_series = series_val_counts.shape[0]
 
             if is_train:
-                # Generate the datetime range starting from '1/1/2023 00:00:00', with the
-                # total count being n times the unique locations
+                # since prophet requires a datetime column, we will make up a timeline
                 start_date = pd.Timestamp(self.made_up_start_dt)
                 datetimes = pd.date_range(
                     start=start_date,
@@ -142,6 +140,7 @@ class Forecaster:
         Args:
             data (pandas.DataFrame): The features of the training data.
         """
+        np.random.seed(0)
         history = self.prepare_data(history.copy())
 
         groups_by_ids = history.groupby(self.id_col)
@@ -209,10 +208,8 @@ class Forecaster:
             "yhat": prediction_col_name,
             "ds": self.time_col,
             }, inplace=True)
-        # del all_forecasts['ds']
         if self.time_col_dtype == 'INT':
             all_forecasts[self.time_col]  = all_forecasts[self.time_col].map(self.time_to_int_map)
-        print(all_forecasts.head())
         return all_forecasts
 
 
@@ -224,7 +221,7 @@ class Forecaster:
             cols = [ c for c in df_cols_to_use if c in forecast.columns]
             forecast = forecast[cols]
         else:
-            # no model found - indicative of key not being in the history, so cant forecast for it. 
+            # no model found - key wasnt found in history, so cant forecast for it.
             forecast = None
         return forecast
 
@@ -292,7 +289,7 @@ def predict_with_model(
         model: Forecaster,
         test_data: pd.DataFrame,
         prediction_col_name: str
-    ) -> np.ndarray:
+    ) -> pd.DataFrame:
     """
     Make forecast.
 
@@ -302,7 +299,7 @@ def predict_with_model(
         prediction_col_name (int): Name to give to prediction column.
 
     Returns:
-        np.ndarray: The forecast.
+        pd.DataFrame: The forecast.
     """
     return model.predict(test_data, prediction_col_name)
 
