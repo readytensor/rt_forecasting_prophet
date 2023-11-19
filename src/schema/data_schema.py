@@ -130,7 +130,7 @@ class ForecastingSchema:
         Returns:
             List[str]: The list of past_covariates.
         """
-        if "past_covariates" not in self.schema:
+        if "pastCovariates" not in self.schema:
             return []
         if len(self.schema["pastCovariates"]) == 0:
             return []
@@ -155,13 +155,35 @@ class ForecastingSchema:
         Returns:
             List[str]: The list of future_covariates.
         """
-        if "future_covariates" not in self.schema:
+        if "futureCovariates" not in self.schema:
             return []
         if len(self.schema["futureCovariates"]) == 0:
             return []
         fields = self.schema["futureCovariates"]
         future_covariates = [f["name"] for f in fields if f["dataType"] == "NUMERIC"]
         return future_covariates
+
+    @property
+    def covariates(self) -> List[str]:
+        """
+        Gets the past and future covariates of the data.
+
+        Returns:
+            List[str]: The covariates list.
+        """
+        return self._past_covariates + self._future_covariates
+    
+    @property
+    def all_fields(self) -> List[str]:
+        """
+        Gets the list of all fields in the data.
+        This includes the ID, time, target, and covariates.
+
+        Returns:
+            List[str]: The list of fields.
+        """
+        return [self.id_col, self.time_col, self.target] + \
+            self._past_covariates + self._future_covariates
 
     @property
     def id_col(self) -> str:
@@ -245,49 +267,49 @@ class ForecastingSchema:
             "description", "No description for target available."
         )
 
-    def get_description_for_feature(self, feature_name: str) -> str:
+    def get_description_for_covariate(self, covariate_name: str) -> str:
         """
-        Gets the description for a single feature.
+        Gets the description for a single covariate.
 
         Args:
-            feature_name (str): The name of the feature.
+            covariate_name (str): The name of the covariate.
 
         Returns:
-            str: The description for the specified feature.
+            str: The description for the specified covariate.
         """
-        field = self._get_field_by_name(feature_name)
-        return field.get("description", "No description for feature available.")
+        field = self._get_field_by_name(covariate_name)
+        return field.get("description", "No description for covariate available.")
 
-    def get_example_value_for_feature(self, feature_name: str) -> List[str]:
+    def get_example_value_for_covariate(self, covariate_name: str) -> List[str]:
         """
-        Gets the example value for a single feature.
+        Gets the example value for a single covariate.
 
         Args:
-            feature_name (str): The name of the feature.
+            covariate_name (str): The name of the covariate.
 
         Returns:
-            List[str]: The example values for the specified feature.
+            List[str]: The example values for the specified covariate.
         """
-        return self._get_field_by_name(feature_name).get("example", 0.0)
+        return self._get_field_by_name(covariate_name).get("example", 0.0)
 
-    def _get_field_by_name(self, feature_name: str) -> dict:
+    def _get_field_by_name(self, covariate_name: str) -> dict:
         """
-        Gets the field dictionary for a given feature name.
+        Gets the covariate dictionary for a given feature name.
 
         Args:
-            feature_name (str): The name of the feature.
+            covariate_name (str): The name of the covariate.
 
         Returns:
-            dict: The field dictionary for the feature.
+            dict: The covariate dictionary for the covariate.
 
         Raises:
-            ValueError: If the feature is not found in the schema.
+            ValueError: If the covariate is not found in the schema.
         """
-        fields = self.schema["additionalFeatures"]
-        for field in fields:
-            if field["name"] == feature_name:
-                return field
-        raise ValueError(f"Feature '{feature_name}' not found in the schema.")
+        covariates = self.schema["pastCovariates"] + self.schema["futureCovariates"]
+        for covariate in covariates:
+            if covariate["name"] == covariate_name:
+                return covariate
+        raise ValueError(f"covariate '{covariate_name}' not found in the schema.")
 
 
 def load_json_data_schema(schema_dir_path: str) -> ForecastingSchema:
