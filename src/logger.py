@@ -40,7 +40,7 @@ def log_error(message: str, error: Exception, error_fpath: str) -> None:
         file.write("\n")
         traceback_msg = "".join(
             traceback.format_exception(
-                etype=type(error), value=error, tb=error.__traceback__
+                type(error), value=error, tb=error.__traceback__
             )
         )
         file.write(traceback_msg)
