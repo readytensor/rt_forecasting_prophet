@@ -52,6 +52,8 @@ class CovariateDataType(str, Enum):
 class Frequency(str, Enum):
     """Enum for the frequency of the time series"""
 
+    SECONDLY = "SECONDLY"
+    MINUTELY = "MINUTELY"
     HOURLY = "HOURLY"
     DAILY = "DAILY"
     WEEKLY = "WEEKLY"

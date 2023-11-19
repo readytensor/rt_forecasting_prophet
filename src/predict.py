@@ -97,11 +97,11 @@ def run_batch_predictions(
         logger.info("Loading prediction input data...")
         test_data = read_csv_in_directory(file_dir_path=test_dir)
 
-        # # validate the data
-        # logger.info("Validating prediction data...")
-        # validated_test_data = validate_data(
-        #     data=test_data, data_schema=data_schema, is_train=False
-        # )
+        # validate the data
+        logger.info("Validating prediction data...")
+        validated_test_data = validate_data(
+            data=test_data, data_schema=data_schema, is_train=False
+        )
 
         logger.info("Loading predictor model...")
         predictor_model = load_predictor_model(predictor_dir_path)
@@ -109,16 +109,18 @@ def run_batch_predictions(
         logger.info("Making predictions...")
         predictions = predict_with_model(
             predictor_model,
-            test_data,
+            validated_test_data,
             model_config["prediction_field_name"]
         )
 
-        # logger.info("Validating predictions...")
-        # validated_predictions = validate_predictions(predictions_df, data_schema)
+        logger.info("Validating predictions...")
+        validated_predictions = validate_predictions(
+            predictions, data_schema, model_config["prediction_field_name"]
+        )
 
         logger.info("Saving predictions...")
         save_dataframe_as_csv(
-            dataframe=predictions, file_path=predictions_file_path
+            dataframe=validated_predictions, file_path=predictions_file_path
         )
 
         logger.info("Batch predictions completed successfully")

@@ -36,10 +36,6 @@ def run_training(
         model_config_file_path (str, optional): The path of the model
             configuration file.
         train_dir (str, optional): The directory path of the train data.
-        preprocessing_config_file_path (str, optional): The path of the preprocessing
-            configuration file.
-        preprocessing_dir_path (str, optional): The dir path where to save the pipeline
-            and target encoder.
         predictor_dir_path (str, optional): Dir path where to save the
             predictor model.
         default_hyperparameters_file_path (str, optional): The path of the default
@@ -74,10 +70,10 @@ def run_training(
         train_data = read_csv_in_directory(train_dir)
 
         # validate the data
-        # logger.info("Validating train data...")
-        # validated_data = validate_data(
-        #     data=train_data, data_schema=data_schema, is_train=True
-        # )
+        logger.info("Validating train data...")
+        validated_data = validate_data(
+            data=train_data, data_schema=data_schema, is_train=True
+        )
 
         # use default hyperparameters to train model
         logger.info("Training forecaster...")
@@ -85,7 +81,7 @@ def run_training(
             default_hyperparameters_file_path
         )
         forecaster = train_predictor_model(
-            history=train_data,
+            history=validated_data,
             id_col=data_schema.id_col,
             target_col=data_schema.target,
             time_col=data_schema.time_col,

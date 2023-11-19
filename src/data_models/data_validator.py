@@ -3,6 +3,7 @@ import pandas as pd
 from pydantic import BaseModel, validator
 
 from schema.data_schema import ForecastingSchema
+from data_models.schema_validator import TimeDataType
 
 
 def get_data_validator(schema: ForecastingSchema, is_train: bool) -> BaseModel:
@@ -15,10 +16,6 @@ def get_data_validator(schema: ForecastingSchema, is_train: bool) -> BaseModel:
     2. That the data under ID field is unique.
     3. If `is_train` is `True`, that the input DataFrame contains the target field
         specified in the schema.
-    4. If `is_train` is `True`, that all classes defined in the schema are present in
-       the target column of the DataFrame.
-    5. If `is_train` is `True`, that only the target classes specified in the
-       schema are present in the target column in training data.
     6. That the input DataFrame contains all feature fields specified in the schema.
     7. For non-nullable features, that they do not contain null values.
     8. That numeric features do not contain non-numeric values.
@@ -42,60 +39,112 @@ def get_data_validator(schema: ForecastingSchema, is_train: bool) -> BaseModel:
 
         @validator("data", allow_reuse=True)
         def validate_dataframe(cls, data):
+            id_col = schema.id_col
+            time_col = schema.time_col
+            target = schema.target
+            time_col_dtype = schema.time_col_dtype
 
-            if schema.id not in data.columns:
+            if id_col not in data.columns:
                 raise ValueError(
-                    f"ID field '{schema.id}' is not present in the given data"
+                    f"ID field '{id_col}' is not present in the given data"
                 )
 
-            if data[schema.id].duplicated().any():
+            # Check for null values in the 'id' column
+            if data[id_col].isna().any():
                 raise ValueError(
-                    f"ID field '{schema.id}' does not contain unique values"
+                    f"The ID field '{id_col}' contains null values."
+                )
+
+            if time_col not in data.columns:
+                raise ValueError(
+                    f"Time field '{time_col}' is not present in the given data"
+                )
+
+            # Check for null values in the 'id' column
+            if data[time_col].isna().any():
+                raise ValueError(
+                    f"The Time field '{time_col}' contains null values."
+                )
+
+            # Check if all time column values are integers
+            if time_col_dtype == TimeDataType.INT:
+                # Check if all time column values are integers
+                if not pd.api.types.is_integer_dtype(data[time_col]):
+                    raise ValueError(
+                        f"The time column '{time_col}' must contain only integer values. "
+                        "Found non-integer value(s)."
+                    )
+
+            elif time_col_dtype == TimeDataType.DATE:
+                # Check if all values match the DATE format '%Y-%m-%d'
+                if not all(
+                    pd.to_datetime(data[time_col], format='%Y-%m-%d', errors='coerce').notna()
+                ):
+                    raise ValueError(
+                        f"The time column '{time_col}' must be in '%Y-%m-%d' format."
+                    )
+
+            elif time_col_dtype == TimeDataType.DATETIME:
+                # Check if all values match either of the DATETIME formats
+                if not all(
+                    pd.to_datetime(data[time_col], format='%Y-%m-%d %H:%M:%S', errors='coerce').notna() |
+                    pd.to_datetime(data[time_col], format='%Y-%m-%d %H-:M:%S.%f', errors='coerce').notna()
+                ):
+                    raise ValueError(
+                        f"The time column '{time_col}' must be in '%Y-%m-%d %H:%M:%S'"
+                        " or '%Y-%m-%d %H:%M:%S.%f' format."
+                    )
+            else:
+                raise ValueError(f"Unsupported time column data type: '{time_col_dtype}'")
+
+            # Check for duplicates in the combination of id and time col
+            if data.duplicated(subset=[id_col, time_col]).any():
+                raise ValueError(
+                    f"The combination of ID field '{id_col}' and time field "
+                    f"'{time_col}' does not contain unique values."
+                )
+
+            # Check if all 'id's have the same number of unique 'time' values
+            unique_time_counts = data.groupby(id_col)[time_col].nunique()
+            if unique_time_counts.nunique() != 1:
+                raise ValueError(
+                    f"Not all IDs in field '{id_col}' have the same number of unique "
+                    f"time values in field '{time_col}'."
                 )
 
             if is_train:
-                if schema.target not in data.columns:
+                if target not in data.columns:
                     raise ValueError(
-                        f"Target field '{schema.target}' is not present "
+                        f"Target field '{target}' is missing "
                         "in the given data"
                     )
 
-                unique_target_values = set(data[schema.target].astype(str).unique())
-                missing_classes = set(schema.target_classes) - unique_target_values
-                if missing_classes:
+                if not all(data[target].apply(lambda x: pd.isnull(x) or np.isreal(x))):
                     raise ValueError(
-                        "Target column in the train data does not contain all classes"
-                        f" defined in the schema. Missing classes: {missing_classes}"
+                        f"Target '{target}' contains null or non-numeric data"
                     )
 
-                for unique_val in unique_target_values:
-                    if unique_val not in schema.target_classes:
+                for feature in schema.past_covariates:
+                    if feature not in data.columns:
                         raise ValueError(
-                            f"Unexpected class '{unique_val}' in the target field. "
-                            f"Expected target classes are {schema.target_classes}."
+                            f"Past covariate '{feature}' is missing in the given data"
                         )
 
-            for feature in schema.features:
+            for feature in schema.future_covariates:
                 if feature not in data.columns:
                     raise ValueError(
-                        f"Feature '{feature}' is not present in the given data"
+                        f"Future covariate '{feature}' is missing in the given data"
                     )
 
-            for feature in schema.non_nullable_features:
-                if feature not in data.columns:
-                    raise ValueError(
-                        f"Feature '{feature}' is not present in the given data"
-                    )
+            covariates_to_check = [*schema.future_covariates]
+            if is_train:
+                covariates_to_check += schema.past_covariates
 
-                if data[feature].isnull().any():
+            for feature in covariates_to_check:
+                if any(data[feature].apply(lambda x: pd.isnull(x) or not np.isreal(x))):
                     raise ValueError(
-                        f"Non-nullable feature '{feature}' contains null values"
-                    )
-
-            for feature in schema.numeric_features:
-                if not all(data[feature].apply(lambda x: pd.isnull(x) or np.isreal(x))):
-                    raise ValueError(
-                        f"Numeric feature '{feature}' contains non-numeric data"
+                        f"Covariate '{feature}' contains non-numeric data. "
+                        "Only numeric values allowed."
                     )
 
             return data
@@ -112,7 +161,7 @@ def validate_data(
     Args:
         data (pd.DataFrame): The train or test data to validate.
         data_schema (ForecastingSchema): An instance of
-            inaryClassificationSchema.
+            ForecastingSchema.
         is_train (bool): Whether the data is for training or not.
 
     Returns:
