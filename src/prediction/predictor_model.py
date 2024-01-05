@@ -277,15 +277,22 @@ def train_predictor_model(
     time_col_dtype: str,
     past_covariates: List[str],
     future_covariates: List[str],
+    static_covariates: List[str],
     hyperparameters: dict,
 ) -> Forecaster:
     """
     Instantiate and train the predictor model.
 
     Args:
-        data (pd.DataFrame): The training data inputs.
-        train_y (pd.Series): The training data labels.
-        hyperparameters (dict): Hyperparameters for the Forecaster.
+        history (pd.DataFrame): The history (training) data inputs.
+        id_col (str): Name of id column in the history dataframe.
+        target_col (str): Name of target column in the history dataframe.
+        time_col (str): Name of time (epoch) column in the history dataframe.
+        time_col_dtype (str): Data type of time (epoch) column.
+        past_covariates (List[str]): List of past covariates.
+        static_covariates (List[str]): List of future covariates.
+        static_covariates (List[str]): List of static covariates.
+        hyperparameters (dict): Hyperparameters for Prophet
 
     Returns:
         'Forecaster': The Forecaster model
@@ -295,7 +302,7 @@ def train_predictor_model(
         target_col=target_col,
         time_col=time_col,
         time_col_dtype=time_col_dtype,
-        additional_regressors=future_covariates,
+        additional_regressors=future_covariates+static_covariates,
         **hyperparameters,
     )
     model.fit(history=history)
