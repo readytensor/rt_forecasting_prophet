@@ -1,5 +1,3 @@
-import time
-
 from config import paths
 from data_models.data_validator import validate_data
 from logger import get_logger, log_error
@@ -8,7 +6,12 @@ from prediction.predictor_model import (
     train_predictor_model,
 )
 from schema.data_schema import load_json_data_schema, save_schema
-from utils import read_csv_in_directory, read_json_as_dict, set_seeds
+from utils import (
+    read_csv_in_directory,
+    read_json_as_dict,
+    set_seeds,
+    TimeAndMemoryTracker,
+)
 
 logger = get_logger(task_name="train")
 
@@ -46,7 +49,6 @@ def run_training(
     try:
 
         logger.info("Starting training...")
-        start = time.time()
         # load and save schema
         logger.info("Loading and saving schema...")
         data_schema = load_json_data_schema(input_schema_dir)
@@ -72,28 +74,23 @@ def run_training(
 
         # use default hyperparameters to train model
         logger.info("Training forecaster...")
-        default_hyperparameters = read_json_as_dict(
-            default_hyperparameters_file_path
-        )
-        forecaster = train_predictor_model(
-            history=validated_data,
-            id_col=data_schema.id_col,
-            target_col=data_schema.target,
-            time_col=data_schema.time_col,
-            time_col_dtype=data_schema.time_col_dtype,
-            past_covariates=data_schema.past_covariates,
-            future_covariates=data_schema.future_covariates,
-            static_covariates=data_schema.static_covariates,
-            hyperparameters=default_hyperparameters
-        )
+        default_hyperparameters = read_json_as_dict(default_hyperparameters_file_path)
+        with TimeAndMemoryTracker(logger) as _:
+            forecaster = train_predictor_model(
+                history=validated_data,
+                id_col=data_schema.id_col,
+                target_col=data_schema.target,
+                time_col=data_schema.time_col,
+                time_col_dtype=data_schema.time_col_dtype,
+                past_covariates=data_schema.past_covariates,
+                future_covariates=data_schema.future_covariates,
+                static_covariates=data_schema.static_covariates,
+                hyperparameters=default_hyperparameters,
+            )
 
         # save predictor model
         logger.info("Saving forecaster...")
         save_predictor_model(forecaster, predictor_dir_path)
-        
-        end = time.time()
-        elapsed_time = end - start
-        logger.info(f"Training completed in {round(elapsed_time/60., 3)} minutes")
 
     except Exception as exc:
         err_msg = "Error occurred during training."
