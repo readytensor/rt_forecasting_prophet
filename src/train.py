@@ -37,11 +37,6 @@ def run_training(
             predictor model.
         default_hyperparameters_file_path (str, optional): The path of the default
             hyperparameters file.
-        run_tuning (bool, optional): Whether to run hyperparameter tuning.
-            Default is False.
-        hpt_specs_file_path (str, optional): The path of the configuration file for
-            hyperparameter tuning.
-        hpt_results_dir_path (str, optional): Dir path where to save the HPT results.
     Returns:
         None
     """
