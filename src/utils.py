@@ -208,8 +208,9 @@ class ResourceTracker(object):
     memory allocated by code executed inside it.
     """
 
-    def __init__(self, logger, monitoring_interval):
+    def __init__(self, logger, monitoring_interval, is_train):
         self.logger = logger
+        self.is_train = is_train
         self.monitor = MemoryMonitor(logger=logger, interval=monitoring_interval)
 
     def __enter__(self):
