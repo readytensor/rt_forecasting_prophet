@@ -229,6 +229,7 @@ class ResourceTracker(object):
         peak_python_memory_mb = peak / 1024**2
         process_cpu_peak_memory_mb = self.monitor.get_peak_memory_usage()
         gpu_peak_memory_mb = 0
+
         self.logger.info(f"Execution time: {elapsed_time:.2f} seconds")
         self.logger.info(
             f"Peak Python Allocated Memory: {peak_python_memory_mb:.2f} MB"
@@ -239,6 +240,20 @@ class ResourceTracker(object):
         self.logger.info(
             f"Peak System RAM Usage (Incremental): {process_cpu_peak_memory_mb:.2f} MB"
         )
+
+        output = f"""
+Execution time: {elapsed_time:.2f} seconds
+Peak Python Allocated Memory: {peak_python_memory_mb:.2f} MB
+Peak CUDA GPU Memory Usage (Incremental): {gpu_peak_memory_mb:.2f} MB
+Peak System RAM Usage (Incremental): {process_cpu_peak_memory_mb:.2f} MB
+"""
+        if self.is_train:
+            name = "train_resources.txt"
+        else:
+            name = "predict_resources.txt"
+        resources_fpath = os.path.join(paths.OUTPUT_DIR, name)
+        with open(resources_fpath, "w") as f:
+            f.write(output)
 
 
 class MemoryMonitor:
